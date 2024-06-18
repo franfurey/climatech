@@ -1,0 +1,22 @@
+<!-- app/templates/map.html -->
+{% extends "base.html" %}
+
+{% block content %}
+    <div id="map" style="height: 100vh;"></div>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            fetch('/terrain/{{ place_id }}')
+                .then(response => response.json())
+                .then(data => {
+                    var map = L.map('map').fitBounds(data.bounds);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+
+                    L.geoJSON(data.geojson).addTo(map);
+                })
+                .catch(error => console.error('Error fetching the GeoJSON data:', error));
+        });
+    </script>
+{% endblock %}

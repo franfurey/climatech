@@ -1,0 +1,26 @@
+.
+├── alembic
+│   ├── README
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions
+│       ├── 01bb1e17a192_initial_migration.py
+│       └── 300038457dbc_initial_migration.py
+├── alembic.ini
+├── app
+│   ├── database.py
+│   ├── main.py
+│   ├── models.py
+│   ├── static
+│   │   ├── 3.geojson
+│   │   └── terrain1.geojson
+│   └── templates
+│       ├── base.html
+│       ├── index.html
+│       └── map.html
+├── estructura_proyecto.txt
+├── readme.md
+├── requirements.txt
+└── test_asyncpg.py
+
+6 directories, 18 files
