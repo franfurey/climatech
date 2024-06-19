@@ -14,6 +14,8 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Form, File, Upload
 
 from .models import Place
 from .database import get_db
+from .external_apis.appears.auth import get_appears_token
+from .external_apis.appears.appears import get_product_info
 
 app = FastAPI()
 
@@ -95,9 +97,6 @@ async def delete_place(place_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"message": "Place deleted successfully"}
-
-from external_apis.appears.auth import get_appears_token
-from external_apis.appears.appears import get_product_info
 
 @app.route('/get_product/<product_id>')
 async def show_product_info(product_id):
