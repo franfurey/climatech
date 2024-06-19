@@ -1,16 +1,19 @@
 # app/main.py
-from fastapi import FastAPI, Depends, HTTPException, Request, Form, File, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy.exc import IntegrityError
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-import json
-import os
 
+import os
+import json
+from sqlalchemy import func
+from shapely.geometry import shape
+from sqlalchemy.future import select
+from geoalchemy2.shape import from_shape
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, File, UploadFile
+
+from .models import Place
 from .database import get_db
-from .models import Place, Base
 
 app = FastAPI()
 
@@ -19,8 +22,6 @@ env = Environment(
     loader=FileSystemLoader("app/templates"),
     autoescape=select_autoescape(['html', 'xml'])
 )
-
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: AsyncSession = Depends(get_db)):
@@ -31,20 +32,31 @@ async def read_root(request: Request, db: AsyncSession = Depends(get_db)):
 
 @app.get("/terrain/{place_id}", response_class=JSONResponse)
 async def get_terrain(place_id: int, db: AsyncSession = Depends(get_db)):
-    place = await db.get(Place, place_id)
-    if not place:
+    result = await db.execute(
+        select(
+            Place.id, 
+            Place.name, 
+            Place.description,
+            func.ST_AsGeoJSON(Place.location).label('geojson')
+        ).where(Place.id == place_id)
+    )
+    place_data = result.fetchone()  # Cambio aquí para obtener la primera fila de los resultados
+    if not place_data:
         raise HTTPException(status_code=404, detail="Place not found")
 
-    file_path = os.path.join("app", place.geojson_path)
-    with open(file_path, 'r') as f:
-        geojson_data = json.load(f)
+    # Usar indexación si los resultados son tratados como una tupla
+    geojson_data = json.loads(place_data.geojson)  # Acceso correcto al campo geojson
 
-    coords = geojson_data["features"][0]["geometry"]["coordinates"][0]
-    lats = [coord[1] for coord in coords]
-    lngs = [coord[0] for coord in coords]
-    bounds = [[min(lats), min(lngs)], [max(lats), max(lngs)]]
-
+    if 'coordinates' in geojson_data:
+        coordinates = geojson_data['coordinates'][0]
+        lats = [coord[1] for coord in coordinates]
+        lngs = [coord[0] for coord in coordinates]
+        bounds = [[min(lats), min(lngs)], [max(lats), max(lngs)]]
+    else:
+        raise HTTPException(status_code=500, detail="Invalid GeoJSON data")
+    
     return {"geojson": geojson_data, "bounds": bounds}
+
 
 @app.get("/map/{place_id}", response_class=HTMLResponse)
 async def show_map(request: Request, place_id: int, db: AsyncSession = Depends(get_db)):
@@ -57,13 +69,9 @@ async def show_map(request: Request, place_id: int, db: AsyncSession = Depends(g
 
 @app.post("/add_place")
 async def add_place(name: str = Form(...), description: str = Form(...), geojson: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
-    geojson_path = f"static/{name}.geojson"
-    
-    file_location = os.path.join("app", geojson_path)
-    with open(file_location, "wb") as file:
-        file.write(await geojson.read())
-    
-    new_place = Place(name=name, description=description, geojson_path=geojson_path)
+    geojson_data = json.loads(await geojson.read())
+    shapely_geometry = shape(geojson_data['features'][0]['geometry'])
+    new_place = Place(name=name, description=description, location=from_shape(shapely_geometry, srid=4326))
     db.add(new_place)
     try:
         await db.commit()
@@ -87,3 +95,12 @@ async def delete_place(place_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"message": "Place deleted successfully"}
+
+from external_apis.appears.auth import get_appears_token
+from external_apis.appears.appears import get_product_info
+
+@app.route('/get_product/<product_id>')
+async def show_product_info(product_id):
+    token = get_appears_token('your_username', 'your_password')  # Guardar estos valores de forma segura
+    product_info = get_product_info(token, product_id)
+    return product_info
