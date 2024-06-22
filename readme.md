@@ -3,7 +3,7 @@
   ```bash
   tree --prune -I 'venv|__pycache__|*.pyc|*.pyo|*.log|*.db|*.sqlite|*.egg-info|__init__.py' > estructura_proyecto.txt
   ```
-- **Generar estructura del proyecto**:
+- **Levantar Servidor**:
   ```
   uvicorn app.main:app --reload
   ```
@@ -31,6 +31,7 @@ Información del Producto
 GET /get_product/{product_id}: Muestra información de un producto utilizando la API APPEARS.
 
 ## Estructura de Directorios
+  ```
 .
 ├── alembic
 │   ├── README
@@ -62,5 +63,6 @@ GET /get_product/{product_id}: Muestra información de un producto utilizando la
 ├── requirements.txt
 ├── start.sh
 └── test_asyncpg.py
+  ```
 
 8 directories, 23 files
