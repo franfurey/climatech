@@ -2,41 +2,67 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div id="map" style="height: 100vh;"></div>
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            var map = L.map('map');
+<div style="display: flex; height: 100vh;">
+    <!-- Menú lateral -->
+    <div style="flex: 0 0 250px; padding: 20px; background-color: #f8f9fa;">
+        <button onclick="fetchNDVI({{ place.id }})" style="width: 100%; padding: 10px; margin-bottom: 10px;">Obtener NDVI</button>
+        <!-- Espacio para futuros botones y funcionalidades -->
+    </div>
 
-            // Capa base de OpenStreetMap
-            var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            });
+    <!-- Mapa -->
+    <div style="flex: 1; position: relative;">
+        <div id="map" style="height: 100%; width: 100%;"></div>
+    </div>
+</div>
 
-            // Capa de imágenes satelitales de ESRI
-            var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-            });
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        console.log("Document loaded, initializing map...");
+        var map = L.map('map');
 
-            // Agregar una capa inicial al mapa
-            osmLayer.addTo(map);
-
-            // Control de capas para alternar entre mapas
-            var baseMaps = {
-                "OpenStreetMap": osmLayer,
-                "Satellite": satelliteLayer
-            };
-
-            L.control.layers(baseMaps).addTo(map);
-
-            // Función para cargar los datos GeoJSON
-            fetch('/terrain/{{ place_id }}')
-                .then(response => response.json())
-                .then(data => {
-                    map.fitBounds(data.bounds);
-                    L.geoJSON(data.geojson).addTo(map);
-                })
-                .catch(error => console.error('Error fetching the GeoJSON data:', error));
+        // Capas base
+        var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         });
-    </script>
+        var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
+
+        // Agrega las capas al mapa
+        osmLayer.addTo(map);
+        satelliteLayer.addTo(map);
+
+        var baseMaps = {
+            "OpenStreetMap": osmLayer,
+            "Satellite": satelliteLayer
+        };
+        L.control.layers(baseMaps).addTo(map);
+
+        // Carga los datos GeoJSON
+        console.log(`Fetching GeoJSON data for place ID: {{ place.id }}`);
+        fetch(`/terrain/{{ place.id }}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log("GeoJSON data parsed:", data);
+                map.fitBounds(data.bounds);
+                L.geoJSON(data.geojson).addTo(map);
+            })
+            .catch(error => console.error('Error fetching the GeoJSON data:', error));
+    });
+
+    // Función para obtener NDVI
+    async function fetchNDVI(placeId) {
+        console.log(`Fetching NDVI data for place ID: ${placeId}`);
+        const response = await fetch(`/ndvi/${placeId}`);
+        if (response.ok) {
+            const data = await response.json();
+            console.log("NDVI data received:", data);
+            document.getElementById('ndviResult').innerText = 'NDVI Value: ' + data.ndvi_value;
+        } else {
+            console.error('Failed to fetch NDVI data');
+            alert('Failed to fetch NDVI data');
+        }
+    }
+</script>
 {% endblock %}

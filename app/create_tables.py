@@ -1,9 +1,10 @@
 # app/create_tables.py
+import asyncio
 import psycopg2
 import psycopg2.errors
+from models import Base, Place, NDVIData
 from sqlalchemy.ext.asyncio import create_async_engine
-import asyncio
-from models import Base, Place
+from sqlalchemy.ext.declarative import declarative_base
 
 DATABASE_SERVER_URL = "postgresql://franciscofurey@localhost/"
 DATABASE_NAME = "climatech"
