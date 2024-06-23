@@ -13,21 +13,21 @@ Web application project developed with FastAPI to visualize and manage geospatia
 
 ## System Components
 Backend: FastAPI
-Base de Datos: PostgreSQL con PostGIS
-Frontend: Jinja2 para renderizado de plantillas, Leaflet para mapas interactivos
+Database: PostgreSQL with PostGIS
+Frontend: Jinja2 for template rendering, Leaflet for interactive mapping
 
 ## Endpoint Documentation
-Root Endpoint
+- **Root Endpoint**:
 GET /: Return HTML with list of all locations.
-Terrain Details
+- **Terrain Details**:
 GET /terrain/{place_id}: Returns GeoJSON data of the place specified by ID.
-Map Display
+- **Map Display**:
 GET /map/{place_id}: Displays the interactive map of a specified place.
-Add a New Place
+- **Add a New Place**:
 POST /add_place: Adds a new place to the system and redirects to the main page.
-Deleting Places
+- **Deleting Places**:
 DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated GeoJSON file.
-Product Information
+- **Product Information**:
 GET /get_product/{product_id}: Displays information about a product using the APPEARS API.
 
 ## Directory Structure
