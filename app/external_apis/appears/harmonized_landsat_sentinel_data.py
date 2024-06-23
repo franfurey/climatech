@@ -1,26 +1,39 @@
+# app/external_apis/appears/harmonized_landsat_sentinel_data.py
 import re
 import os
 import json
 import requests
 import rasterio
 from datetime import datetime
-from rasterio.plot import show
 from sqlalchemy.future import select
 from geoalchemy2.shape import to_shape
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from shapely.geometry import mapping # This import is necessary to convert geometries from Shapely to GeoJSON.
 
+from app.config.log_config import logger
 from app.models import Place, HarmonizedLandsatSentinelData
-from app.external_apis.appears.auth import get_appears_token
 
-import boto3
-from botocore.exceptions import NoCredentialsError
-
-import logging
-# Configura logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)  # Crea una instancia de logger para usar en todo el módulo
+BAND_NAME_MAP = {
+    'b01': 'b01_coastal_aerosol',
+    'b02': 'b02_blue',
+    'b03': 'b03_green',
+    'b04': 'b04_red',
+    'b05': 'b05_nir',
+    'b06': 'b06_swir1',
+    'b07': 'b07_swir2',
+    'b08': 'b08_nir_broad',
+    'b8a': 'b8a_nir_narrow',
+    'b09': 'b09_water_vapor',
+    'b10': 'b10_cirrus',
+    'b11': 'b11_swir1',
+    'b12': 'b12_swir2',
+    'fmask': 'fmask_quality_bits',
+    'saa': 'saa_sun_azimuth',
+    'sza': 'sza_sun_zenith',
+    'vaa': 'vaa_view_azimuth',
+    'vza': 'vza_view_zenith'
+}
 
 async def fetch_and_store_hls_data(place_id: int, db: AsyncSession, token) -> dict:
     logger.info(f"Fetching place information for place_id: {place_id}")
@@ -126,80 +139,142 @@ async def list_task_files(task_id: str, token: str) -> list:
     else:
         logger.warning(f"No se pudieron listar los archivos para la tarea {task_id}: HTTP {response.status_code}")
         return []
+    
+import aiohttp
+import asyncio
+import os
 
-async def download_and_process_file(file_url: str, file_name: str, place_id: int, db: AsyncSession):
-    """ Descarga y procesa un archivo GeoTIFF. """
-    logger.info(f"Descargando archivo: {file_name} desde {file_url}")
-    
-    # Configura el cliente de S3
-    s3 = boto3.client('s3')
-    
-    # Extrae el bucket y la key del archivo desde la URL
-    bucket = file_url.split('/')[2]
-    key = '/'.join(file_url.split('/')[3:])
-    
+async def download_and_process_file(
+                                    task_id: str, 
+                                    file_id: str, 
+                                    file_name: str, 
+                                    place_id: int, 
+                                    db: AsyncSession,
+                                    token: str
+                                    ):
+    """Descarga y procesa un archivo GeoTIFF utilizando la API de AppEEARS."""
+    url = f"https://appeears.earthdatacloud.nasa.gov/api/bundle/{task_id}/{file_id}"
+    headers = {"Authorization": f"Bearer {token}"}
     file_path = f"temp_{file_name}"
-    try:
-        s3.download_file(Bucket=bucket, Key=key, Filename=file_path)
-        logger.info(f"Archivo {file_name} descargado exitosamente")
-    except NoCredentialsError:
-        logger.error("Credenciales de AWS no disponibles")
-        return {"error": "AWS credentials not found"}
-    except Exception as e:
-        logger.error(f"Error descargando el archivo: {str(e)}")
-        return {"error": "Error downloading file"}
 
-    band, capture_date = extract_info_from_filename(file_name)
-    if not band or not capture_date:
-        logger.error("Nombre de archivo inválido para procesamiento")
-        return {"error": "Invalid file name for processing"}
+    # Descargar archivo usando AppEEARS API
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 200:
+                # Asegúrate de que la carpeta donde se guardará el archivo existe
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                with open(file_path, 'wb') as f:
+                    while True:
+                        chunk = await response.content.read(1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                logger.info(f"Archivo {file_name} descargado exitosamente a {file_path}")
+            else:
+                error_msg = await response.text()
+                logger.error(f"Error descargando el archivo: {error_msg}")
+                return {"error": f"Error downloading file: {error_msg}"}
 
-    # Procesa el archivo descargado
-    with rasterio.open(file_path) as src:
-        value = src.read(1)[0, 0]  # Leer el primer valor de la primera banda
+    # Extrae información y coordenadas
+    data_points = extract_info_and_coordinates_from_tif(file_name, file_path)
+    if not data_points:
+        return {"error": "Failed to extract data"}
 
-    result = await store_or_update_data_in_db(place_id=place_id, band=band, value=value, capture_date=capture_date, db=db)
-    logger.info(f"Dato procesado y almacenado para {file_name}")
+    for point in data_points:
+        result = await store_or_update_data_in_db(
+            place_id=place_id,
+            band=point['band'],
+            value=point['value'],
+            capture_date=point['date'],
+            latitude=point['latitude'],
+            longitude=point['longitude'],
+            db=db
+        )
+        logger.info(f"Dato procesado y almacenado para {file_name}, coordenadas ({point['latitude']}, {point['longitude']})")
     return result
 
-async def store_or_update_data_in_db(place_id: int, band: str, value: float, capture_date: datetime, db: AsyncSession):
-    """ Busca si existe un registro con la misma fecha y lugar; si sí, actualiza, si no, crea uno nuevo. """
-    logger.info(f"Buscando datos existentes para el lugar {place_id} en la fecha {capture_date}")
+from geoalchemy2.elements import WKTElement
+from sqlalchemy.sql import func
+
+async def store_or_update_data_in_db(place_id: int, 
+                                     band: str, 
+                                     value: float, 
+                                     capture_date: datetime, 
+                                     latitude: float, 
+                                     longitude: float, 
+                                     db: AsyncSession
+                                     ):
+    
+    point = WKTElement(f'POINT({longitude} {latitude})', srid=4326)
+    logger.info(f"Buscando datos existentes para el lugar {place_id} con coordenadas {point} y fecha {capture_date}")
     statement = select(HarmonizedLandsatSentinelData).where(
         HarmonizedLandsatSentinelData.place_id == place_id,
-        HarmonizedLandsatSentinelData.capture_date == capture_date
+        HarmonizedLandsatSentinelData.capture_date == capture_date,
+        func.ST_DWithin(HarmonizedLandsatSentinelData.location, point, 1)  # 1 metro de tolerancia
     )
     result = await db.execute(statement)
     record = result.scalars().first()
 
+    column_name = BAND_NAME_MAP.get(band.lower())  # Usa el mapa para obtener el nombre de columna correcto
+
     if record:
         logger.info(f"Actualizando registro existente con nueva banda {band} y valor {value}")
-        setattr(record, band, value)  # Actualiza el campo correspondiente a la banda
+        setattr(record, column_name, value)  # Actualiza usando el nombre de columna mapeado
     else:
         logger.info(f"Creando nuevo registro para banda {band} con valor {value}")
-        # Crea un nuevo registro si no existe
-        new_record = HarmonizedLandsatSentinelData(
-            place_id=place_id,
-            capture_date=capture_date,
-            **{band: value}
-        )
+        new_record_kwargs = {
+            'place_id': place_id,
+            'capture_date': capture_date,
+            'location': point,
+            column_name: value
+        }
+        new_record = HarmonizedLandsatSentinelData(**new_record_kwargs)
         db.add(new_record)
-    
+
     await db.commit()
     logger.info("Datos procesados y almacenados exitosamente")
     return {"message": "Data processed successfully"}
 
-def extract_info_from_filename(filename: str):
-    """ Extrae la fecha y la banda del nombre del archivo GeoTIFF. """
+import rasterio
+import re
+from datetime import datetime
+
+def extract_info_and_coordinates_from_tif(filename: str, file_path: str):
+    """Extrae la banda, fecha y las coordenadas de cada píxel de un archivo GeoTIFF."""
     logger.info(f"Extrayendo información de banda y fecha del archivo {filename}")
+    
+    # Extrae información de banda y fecha del nombre del archivo
     match = re.search(r'B(\d+)_doy(\d{7})_', filename)
-    if match:
-        band = f'b{int(match.group(1)):02}'  # Convierte '1' a '01', '2' a '02', etc.
-        doy = int(match.group(2)[-3:])  # Extrae el día del año y convierte a entero
-        year = int(match.group(2)[:4])  # Extrae el año
-        date = datetime.strptime(f'{year}{doy}', '%Y%j').date()  # Convierte a fecha
-        logger.info(f"Extraído banda {band} y fecha {date} del archivo")
-        return band, date
-    else:
+    if not match:
         logger.warning(f"No se pudo extraer información del archivo {filename}")
-    return None, None
+        return None
+
+    band = f'b{int(match.group(1)):02}'  # Convierte '1' a '01', '2' a '02', etc.
+    doy = int(match.group(2)[-3:])  # Extrae el día del año y convierte a entero
+    year = int(match.group(2)[:4])  # Extrae el año
+    date = datetime.strptime(f'{year}{doy}', '%Y%j').date()  # Convierte a fecha
+
+    data_points = []
+    
+    # Abre el archivo GeoTIFF para leer datos y coordenadas
+    with rasterio.open(file_path) as src:
+        # Obtiene los valores de la primera banda
+        band_data = src.read(1)
+        
+        for row in range(src.height):
+            for col in range(src.width):
+                value = band_data[row, col]
+                # Obtiene las coordenadas del píxel
+                longitude, latitude = src.xy(row, col)
+                
+                # Almacena la banda, fecha, coordenadas y valor en una lista
+                data_points.append({
+                    'band': band,
+                    'date': date,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'value': value
+                })
+                
+    logger.info(f"Extraída información y coordenadas para el archivo {filename}")
+    return data_points

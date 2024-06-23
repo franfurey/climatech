@@ -1,9 +1,7 @@
+import aiohttp
 import requests
 
-import logging
-# Configura logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)  # Crea una instancia de logger para usar en todo el módulo
+from app.config.log_config import logger
 
 def get_appears_token(username: str, password: str) -> str:
     url = "https://appeears.earthdatacloud.nasa.gov/api/login"
@@ -14,3 +12,16 @@ def get_appears_token(username: str, password: str) -> str:
         return token
     else:
         raise Exception("Authentication failed")
+    
+async def get_aws_credentials(username: str, password: str):
+    """Obtiene credenciales temporales de AWS para acceder a S3 de forma asíncrona."""
+    url = "https://appeears.earthdatacloud.nasa.gov/api/s3credentials"
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, auth=aiohttp.BasicAuth(username, password), headers={"Content-Length": "0"}) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data
+            else:
+                error_message = await response.text()
+                logger.error(f"Failed to obtain AWS credentials: HTTP {response.status} - {error_message}")
+                return {"error": f"Failed to obtain credentials: {error_message}"}

@@ -2,7 +2,7 @@
 import asyncio
 import psycopg2
 import psycopg2.errors
-from models import Base, Place, NDVIData
+from models import Base, Place, HarmonizedLandsatSentinelData
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 

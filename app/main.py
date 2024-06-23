@@ -1,5 +1,4 @@
 # app/main.py
-
 import os
 import json
 import asyncio
@@ -14,22 +13,17 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, File, UploadFile
 
-from .models import Place
-from .database import get_db
-from app.external_apis.appears.auth import get_appears_token
+from app.config.log_config import logger
+from app.models import Place
+from app.database import get_db
 from app.external_apis.appears.appears import get_product_info
+from app.external_apis.appears.auth import get_appears_token, get_aws_credentials
 from app.external_apis.appears.harmonized_landsat_sentinel_data import fetch_and_store_hls_data, \
     check_task_status, list_task_files, download_and_process_file
 
-import logging
-# Configura logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)  # Crea una instancia de logger para usar en todo el módulo
-
-
 # Load the environment variables from the .env file
 load_dotenv()
-
+ 
 app = FastAPI()
 
 # Configura el entorno de Jinja2 directamente
@@ -134,15 +128,16 @@ async def show_product_info(product_id: int):
 @app.get("/ndvi/{place_id}")
 async def get_ndvi(place_id: int, db: AsyncSession = Depends(get_db)):
     logger.info(f"Iniciando la recuperación de datos para el lugar ID: {place_id}")
-    logger.info(f"Iniciando la DB: {db}")
+
+    # Obtén el token de APPEARS
     token = get_appears_token(username=os.getenv("APPEARS_USER"), password=os.getenv("APPEARS_PASS"))
+
     response = await fetch_and_store_hls_data(place_id=place_id, db=db, token=token)
     if response.get("error"):
         logger.error(f"Error al iniciar la recuperación de datos: {response['error']}")
         raise HTTPException(status_code=400, detail=response["error"])
 
     task_id = response.get("task_id")
-
     logger.info(f"Tarea enviada con ID: {task_id}, esperando a que finalice")
     while not await check_task_status(task_id=task_id, token=token):
         logger.info("Tarea no completada, esperando otro minuto...")
@@ -150,10 +145,18 @@ async def get_ndvi(place_id: int, db: AsyncSession = Depends(get_db)):
 
     logger.info("Tarea completada, procediendo a descargar y procesar archivos")
     files = await list_task_files(task_id=task_id, token=token)
+
+    # Procesa archivos usando la API de AppEEARS
     for file_info in files:
-        file_url = file_info['s3_url']
-        logger.info(f"Procesando archivo: {file_info['file_name']} desde {file_url}")
-        await download_and_process_file(file_url=file_url, file_name=file_info['file_name'], place_id=place_id, db=db)
+        file_id = file_info['file_id']
+        file_name = file_info['file_name']
+        logger.info(f"Procesando archivo: {file_name} con ID: {file_id}")
+        await download_and_process_file(task_id=task_id, 
+                                        file_id=file_id, 
+                                        file_name=file_name, 
+                                        place_id=place_id, 
+                                        db=db, 
+                                        token=token)
 
     logger.info("Todos los archivos han sido procesados exitosamente")
     return {"message": "All files processed successfully"}
