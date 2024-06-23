@@ -1,36 +1,36 @@
-## Comandos Clave
-- **Generar estructura del proyecto**:
+## Key Commands
+- **Generate project structure**:
   ```bash
-  tree --prune -I 'venv|__pycache__|*.pyc|*.pyo|*.log|*.db|*.sqlite|*.egg-info|__init__.py' > estructura_proyecto.txt
+  tree --prune -I 'venv|__pycache__|*.pyc|*.pyo|*.log|*.db|*.sqlite|*.egg-info|__init__.py' > project_structure.txt
   ```
-- **Levantar Servidor**:
+- **Lift Server**:
   ```
   uvicorn app.main:app --reload
   ```
 
-# Descripción General del Proyecto
-Proyecto de aplicación web desarrollada con FastAPI para visualizar y gestionar lugares geoespaciales. Utiliza PostgreSQL con PostGIS para la manipulación de datos geográficos, y ofrece funcionalidades para añadir, visualizar y eliminar lugares.
+# General Description of the Project
+Web application project developed with FastAPI to visualize and manage geospatial places. It uses PostgreSQL with PostGIS for geographic data manipulation, and offers functionalities for adding, viewing and deleting places.
 
-## Componentes del Sistema
+## System Components
 Backend: FastAPI
 Base de Datos: PostgreSQL con PostGIS
 Frontend: Jinja2 para renderizado de plantillas, Leaflet para mapas interactivos
 
-## Documentación de Endpoints
+## Endpoint Documentation
 Root Endpoint
-GET /: Retorna HTML con la lista de todos los lugares.
-Detalles del Terreno
-GET /terrain/{place_id}: Retorna datos GeoJSON del lugar especificado por ID.
-Visualización de Mapas
-GET /map/{place_id}: Muestra el mapa interactivo de un lugar específico.
-Añadir un Nuevo Lugar
-POST /add_place: Añade un lugar nuevo al sistema y redirige a la página principal.
-Eliminación de Lugares
-DELETE /delete_place/{place_id}: Elimina un lugar por su ID y cualquier archivo GeoJSON asociado.
-Información del Producto
-GET /get_product/{product_id}: Muestra información de un producto utilizando la API APPEARS.
+GET /: Return HTML with list of all locations.
+Terrain Details
+GET /terrain/{place_id}: Returns GeoJSON data of the place specified by ID.
+Map Display
+GET /map/{place_id}: Displays the interactive map of a specified place.
+Add a New Place
+POST /add_place: Adds a new place to the system and redirects to the main page.
+Deleting Places
+DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated GeoJSON file.
+Product Information
+GET /get_product/{product_id}: Displays information about a product using the APPEARS API.
 
-## Estructura de Directorios
+## Directory Structure
   ```
 .
 ├── alembic
