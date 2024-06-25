@@ -13,7 +13,6 @@ class Place(Base):
     name = Column(String, index=True)
     description = Column(String, index=True)
     location = Column(Geography(geometry_type='POLYGON', srid=4326), index=True)
-    # Actualiza la relación con la nueva clase
     satellite_data = relationship("HarmonizedLandsatSentinelData", back_populates="place", uselist=False)
 
 class HarmonizedLandsatSentinelData(Base):
@@ -36,7 +35,8 @@ class HarmonizedLandsatSentinelData(Base):
     b10_cirrus = Column(Float)
     b11_swir1 = Column(Float)
     b12_swir2 = Column(Float)
+    ndvi = Column(Float)
     
-    additional_data = Column(JSONB)  # Almacena datos adicionales como SAA, SZA, VAA, VZA, etc.
+    additional_data = Column(JSONB)  # Stores additional data like SAA, SZA, VAA, VZA, etc.
 
-    place = relationship("Place", back_populates="satellite_data")  # Asegúrate de actualizar el nombre aquí también
+    place = relationship("Place", back_populates="satellite_data")

@@ -2,40 +2,26 @@
 import re
 import os
 import json
+import aiohttp
 import requests
 import rasterio
 from datetime import datetime
+from sqlalchemy.sql import func
 from sqlalchemy.future import select
+from shapely.geometry import mapping
 from geoalchemy2.shape import to_shape
 from datetime import datetime, timedelta
+from geoalchemy2.elements import WKTElement
 from sqlalchemy.ext.asyncio import AsyncSession
-from shapely.geometry import mapping # This import is necessary to convert geometries from Shapely to GeoJSON.
 
 from app.config.log_config import logger
+from app.external_apis.appears.utils_appears import BAND_NAME_MAP
 from app.models import Place, HarmonizedLandsatSentinelData
 
-BAND_NAME_MAP = {
-    'b01': 'b01_coastal_aerosol',
-    'b02': 'b02_blue',
-    'b03': 'b03_green',
-    'b04': 'b04_red',
-    'b05': 'b05_nir',
-    'b06': 'b06_swir1',
-    'b07': 'b07_swir2',
-    'b08': 'b08_nir_broad',
-    'b8a': 'b8a_nir_narrow',
-    'b09': 'b09_water_vapor',
-    'b10': 'b10_cirrus',
-    'b11': 'b11_swir1',
-    'b12': 'b12_swir2',
-    'fmask': 'fmask_quality_bits',
-    'saa': 'saa_sun_azimuth',
-    'sza': 'sza_sun_zenith',
-    'vaa': 'vaa_view_azimuth',
-    'vza': 'vza_view_zenith'
-}
-
-async def fetch_and_store_hls_data(place_id: int, db: AsyncSession, token) -> dict:
+async def fetch_and_store_hls_data(place_id: int, 
+                                   db: AsyncSession, 
+                                   token
+                                   ) -> dict:
     logger.info(f"Fetching place information for place_id: {place_id}")
     statement = select(Place).where(Place.id == place_id)
     result = await db.execute(statement)
@@ -46,13 +32,13 @@ async def fetch_and_store_hls_data(place_id: int, db: AsyncSession, token) -> di
         return {"error": "Place not found"}
 
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=30)  # Un mes antes
+    start_date = end_date - timedelta(days=15)  # Two weeks earlier
     task_name = f"HarmonizedLandsatSentinelData-{end_date.strftime('%Y%m%d')}"
 
     logger.info(f"Submitting task for place_id {place_id} with task_name {task_name}")
     logger.info(f"Start date: {start_date.strftime('%m-%d-%Y')}, End date: {end_date.strftime('%m-%d-%Y')}")
 
-    # Convertir la geometría de GeoAlchemy a Shapely y crear un FeatureCollection
+    # Convert GeoAlchemy geometry to Shapely and create a FeatureCollection
     shapely_geom = to_shape(place.location)
     geo_json = {
         "type": "FeatureCollection",
@@ -63,7 +49,7 @@ async def fetch_and_store_hls_data(place_id: int, db: AsyncSession, token) -> di
                 "properties": {}
             }
         ],
-        "fileName": "User-Drawn-Polygon"  # Asegúrate de ajustar este valor si es necesario
+        "fileName": "User-Drawn-Polygon"  # Be sure to adjust this value if necessary.
     }
     logger.info(f"GeoJSON for place location: {json.dumps(geo_json)}")
 
@@ -89,7 +75,6 @@ async def fetch_and_store_hls_data(place_id: int, db: AsyncSession, token) -> di
         }
     }
 
-
     logger.info(f"Task parameters: {json.dumps(task_params, indent=2)}")
 
     response = requests.post(
@@ -111,38 +96,38 @@ async def fetch_and_store_hls_data(place_id: int, db: AsyncSession, token) -> di
         logger.error(f"Failed to submit task: HTTP {response.status_code}")
         return {"error": "Failed to submit task", "status_code": response.status_code}
 
-async def check_task_status(task_id: str, token: str) -> bool:
-    """ Verifica el estado de la tarea y devuelve True si está completa. """
-    logger.info(f"Verificando el estado de la tarea con ID: {task_id}")
+async def check_task_status(task_id: str, 
+                            token: str
+                            ) -> bool:
+    """ Checks the status of the task and returns True if it is complete. """
+
     status_url = f"https://appeears.earthdatacloud.nasa.gov/api/task/{task_id}"
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(status_url, headers=headers)
     if response.status_code == 200:
         task_info = response.json()
         task_status = task_info['status']
-        logger.info(f"Estado de la tarea {task_id}: {task_status}")
+        logger.info(f"Task status {task_id}: {task_status}")
         return task_status == 'done'
     else:
-        logger.error(f"Error al verificar el estado de la tarea {task_id}: HTTP {response.status_code}")
+        logger.error(f"Error checking task status {task_id}: HTTP {response.status_code}")
     return False
 
-async def list_task_files(task_id: str, token: str) -> list:
-    """ Lista los archivos disponibles de una tarea completa. """
-    logger.info(f"Listando archivos para la tarea con ID: {task_id}")
+async def list_task_files(task_id: str, 
+                          token: str
+                          ) -> list:
+    """ Lists the available files of a completed task. """
+
     url = f"https://appeears.earthdatacloud.nasa.gov/api/bundle/{task_id}"
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         files = response.json()['files']
-        logger.info(f"Archivos encontrados para la tarea {task_id}: {len(files)} archivos listados")
+        logger.info(f"Files found for the task {task_id}: {len(files)} listed files")
         return files
     else:
-        logger.warning(f"No se pudieron listar los archivos para la tarea {task_id}: HTTP {response.status_code}")
+        logger.warning(f"Could not list the files for the task {task_id}: HTTP {response.status_code}")
         return []
-    
-import aiohttp
-import asyncio
-import os
 
 async def download_and_process_file(
                                     task_id: str, 
@@ -152,16 +137,22 @@ async def download_and_process_file(
                                     db: AsyncSession,
                                     token: str
                                     ):
-    """Descarga y procesa un archivo GeoTIFF utilizando la API de AppEEARS."""
+    """Download and process a GeoTIFF file using AppEEARS API."""
+
+    # Verify if the file is a GeoTIFF file
+    if not file_name.endswith('.tif'):
+        logger.info(f"Skipping non-TIF file: {file_name}")
+        return {"message": "Skipped non-TIF file"}
+
     url = f"https://appeears.earthdatacloud.nasa.gov/api/bundle/{task_id}/{file_id}"
     headers = {"Authorization": f"Bearer {token}"}
     file_path = f"temp_{file_name}"
 
-    # Descargar archivo usando AppEEARS API
+    # Download file using AppEEARS API
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
-                # Asegúrate de que la carpeta donde se guardará el archivo existe
+                # Make sure that the folder where the file will be saved exists.
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
                 with open(file_path, 'wb') as f:
                     while True:
@@ -169,15 +160,16 @@ async def download_and_process_file(
                         if not chunk:
                             break
                         f.write(chunk)
-                logger.info(f"Archivo {file_name} descargado exitosamente a {file_path}")
+                logger.info(f"File {file_name} successfully downloaded to {file_path}")
             else:
                 error_msg = await response.text()
-                logger.error(f"Error descargando el archivo: {error_msg}")
+                logger.error(f"Error downloading the file: {error_msg}")
                 return {"error": f"Error downloading file: {error_msg}"}
 
-    # Extrae información y coordenadas
+    # Extracts information and coordinates
     data_points = extract_info_and_coordinates_from_tif(file_name, file_path)
     if not data_points:
+        os.remove(file_path)
         return {"error": "Failed to extract data"}
 
     for point in data_points:
@@ -190,11 +182,8 @@ async def download_and_process_file(
             longitude=point['longitude'],
             db=db
         )
-        logger.info(f"Dato procesado y almacenado para {file_name}, coordenadas ({point['latitude']}, {point['longitude']})")
+    os.remove(file_path)
     return result
-
-from geoalchemy2.elements import WKTElement
-from sqlalchemy.sql import func
 
 async def store_or_update_data_in_db(place_id: int, 
                                      band: str, 
@@ -210,18 +199,16 @@ async def store_or_update_data_in_db(place_id: int,
     statement = select(HarmonizedLandsatSentinelData).where(
         HarmonizedLandsatSentinelData.place_id == place_id,
         HarmonizedLandsatSentinelData.capture_date == capture_date,
-        func.ST_DWithin(HarmonizedLandsatSentinelData.location, point, 1)  # 1 metro de tolerancia
+        func.ST_DWithin(HarmonizedLandsatSentinelData.location, point, 1)  # 1 meter tolerance
     )
     result = await db.execute(statement)
     record = result.scalars().first()
 
-    column_name = BAND_NAME_MAP.get(band.lower())  # Usa el mapa para obtener el nombre de columna correcto
+    column_name = BAND_NAME_MAP.get(band.lower())  # Use the map to get the correct column name
 
     if record:
-        logger.info(f"Actualizando registro existente con nueva banda {band} y valor {value}")
-        setattr(record, column_name, value)  # Actualiza usando el nombre de columna mapeado
+        setattr(record, column_name, value)  # Update using the mapped column name
     else:
-        logger.info(f"Creando nuevo registro para banda {band} con valor {value}")
         new_record_kwargs = {
             'place_id': place_id,
             'capture_date': capture_date,
@@ -232,42 +219,41 @@ async def store_or_update_data_in_db(place_id: int,
         db.add(new_record)
 
     await db.commit()
-    logger.info("Datos procesados y almacenados exitosamente")
+    logger.info("Data successfully processed and stored")
     return {"message": "Data processed successfully"}
 
-import rasterio
-import re
-from datetime import datetime
-
-def extract_info_and_coordinates_from_tif(filename: str, file_path: str):
-    """Extrae la banda, fecha y las coordenadas de cada píxel de un archivo GeoTIFF."""
-    logger.info(f"Extrayendo información de banda y fecha del archivo {filename}")
+def extract_info_and_coordinates_from_tif(filename: str, 
+                                          file_path: str
+                                          ):
+    """Extracts the band, date and coordinates of each pixel from a GeoTIFF file."""
     
-    # Extrae información de banda y fecha del nombre del archivo
+    logger.info(f"Extracting band and date information from the file {filename}")
+    
+    # Extracts band and date information from the filename
     match = re.search(r'B(\d+)_doy(\d{7})_', filename)
     if not match:
-        logger.warning(f"No se pudo extraer información del archivo {filename}")
+        logger.warning(f"Could not extract information from the file {filename}")
         return None
 
-    band = f'b{int(match.group(1)):02}'  # Convierte '1' a '01', '2' a '02', etc.
-    doy = int(match.group(2)[-3:])  # Extrae el día del año y convierte a entero
-    year = int(match.group(2)[:4])  # Extrae el año
-    date = datetime.strptime(f'{year}{doy}', '%Y%j').date()  # Convierte a fecha
+    band = f'b{int(match.group(1)):02}'  # Convert '1' to '01', '2' to '02', etc.
+    doy = int(match.group(2)[-3:])  # Extracts the day of the year and converts to integer
+    year = int(match.group(2)[:4])  # Extract the year
+    date = datetime.strptime(f'{year}{doy}', '%Y%j').date()  # Convert to date
 
     data_points = []
     
-    # Abre el archivo GeoTIFF para leer datos y coordenadas
+    # Open the GeoTIFF file to read data and coordinates
     with rasterio.open(file_path) as src:
-        # Obtiene los valores de la primera banda
+        # Gets the values of the first band
         band_data = src.read(1)
         
         for row in range(src.height):
             for col in range(src.width):
                 value = band_data[row, col]
-                # Obtiene las coordenadas del píxel
+                # Gets the coordinates of the pixel
                 longitude, latitude = src.xy(row, col)
                 
-                # Almacena la banda, fecha, coordenadas y valor en una lista
+                # Stores the band, date, coordinates and value in a list
                 data_points.append({
                     'band': band,
                     'date': date,
@@ -276,5 +262,28 @@ def extract_info_and_coordinates_from_tif(filename: str, file_path: str):
                     'value': value
                 })
                 
-    logger.info(f"Extraída información y coordenadas para el archivo {filename}")
+    logger.info(f"Extracted information and coordinates for the file {filename}")
     return data_points
+
+async def calculate_ndvi_for_place(db: AsyncSession, 
+                                   place_id: int
+                                   ):
+    """Calculate NDVI for all recent records of a place."""
+    
+    recent_records = await db.execute(
+        select(HarmonizedLandsatSentinelData)
+        .where(HarmonizedLandsatSentinelData.place_id == place_id)
+        .order_by(HarmonizedLandsatSentinelData.capture_date.desc())
+    )
+    records = recent_records.scalars().all()
+
+    for record in records:
+        if record.b05_nir and record.b04_red:  # Ensure both NIR and Red bands are present
+            nir = record.b05_nir
+            red = record.b04_red
+            if (nir + red) != 0:
+                ndvi = (nir - red) / (nir + red)
+                record.ndvi = ndvi  # Set the NDVI value
+
+    await db.commit()  # Commit changes after updating all records
+    logger.info(f"NDVI calculated and updated for records of place ID {place_id}.")
