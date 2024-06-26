@@ -8,6 +8,10 @@
   uvicorn app.main:app --reload
   ```
 
+# README for FastAPI Geospatial Web Application
+
+This document serves as a comprehensive guide for understanding the structure and functionality of the FastAPI web application designed for managing geospatial data. It is intended for use with Language Models (LLMs) to facilitate a quick and easy grasp of the project's components. The application leverages PostgreSQL with PostGIS for geographic data storage and manipulation, and uses Alembic for database schema migrations, ensuring that database versions are managed and tracked consistently.
+
 # General Description of the Project
 Web application project developed with FastAPI to visualize and manage geospatial places. It uses PostgreSQL with PostGIS for geographic data manipulation, and offers functionalities for adding, viewing and deleting places.
 
