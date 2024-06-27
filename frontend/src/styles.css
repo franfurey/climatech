@@ -1,0 +1,24 @@
+/* frontend/src/styles.css */
+.card {
+    border-radius: 8px;
+  }
+  
+  .card-img-top {
+    height: 200px; /* Ajusta la altura según tus necesidades */
+    object-fit: cover; /* Asegura que la imagen cubra el espacio sin distorsionarse */
+  }
+  
+  .card-title {
+    color: #0056b3; /* Color personalizado para los títulos */
+  }
+  
+  .btn-primary {
+    background-color: #0056b3; /* Color consistente para los botones */
+  }
+  
+  /* Agrega transiciones suaves a los botones */
+  .btn-primary:hover {
+    background-color: #004494;
+    transition: background-color 0.3s ease;
+  }
+  

@@ -2,6 +2,7 @@
 import os
 import json
 import asyncio
+from typing import List, Optional  
 from sqlalchemy import func
 from dotenv import load_dotenv
 from shapely.geometry import shape
@@ -32,6 +33,25 @@ env = Environment(
     loader=FileSystemLoader("app/templates"),
     autoescape=select_autoescape(['html', 'xml'])
 )
+
+from pydantic import BaseModel
+from typing import Optional
+
+class PlaceSchema(BaseModel):
+    id: int
+    name: str
+    description: str
+    location: Optional[str]  # Se espera un string que sea GeoJSON
+
+    class Config:
+        orm_mode = True
+
+@app.get("/api/places", response_model=List[PlaceSchema])
+async def get_places(db: AsyncSession = Depends(get_db)):
+    async with db:
+        result = await db.execute(select(Place.id, Place.name, Place.description, func.ST_AsGeoJSON(Place.location).label('location')))
+        places = result.fetchall()
+        return [{"id": place.id, "name": place.name, "description": place.description, "location": place.location} for place in places]
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: AsyncSession = Depends(get_db)):
@@ -91,40 +111,31 @@ async def add_place(name: str = Form(...),
     db.add(new_place)
     try:
         await db.commit()
+        return {"message": "Place added successfully", "status": "success"}
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=400, detail="Place already exists")
 
-    return RedirectResponse(url="/", status_code=303)
+from sqlalchemy.exc import SQLAlchemyError
 
 @app.delete("/delete_place/{place_id}")
-async def delete_place(place_id: int, 
-                       db: AsyncSession = Depends(get_db)
-                       ):
-    place = await db.get(Place, place_id)
-    if not place:
-        raise HTTPException(status_code=404, detail="Place not found")
-
-    file_path = os.path.join("app", place.geojson_path)
-    if os.path.exists(file_path):
-        os.remove(file_path)
-
-    await db.delete(place)
-    await db.commit()
-    return {"message": "Place deleted successfully"}
-
-@app.route('/get_product/<product_id>')
-async def show_product_info(product_id: int):
-    # Accessing environment variables
-    user = os.getenv("APPEARS_USER")
-    password = os.getenv("APPEARS_PASS")
-
-    if not user or not password:
-        return {"error": "API credentials are not available"}
-
-    token = get_appears_token(username=user, password=password)
-    product_info = get_product_info(token, product_id)
-    return product_info
+async def delete_place(place_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"Deleting place: {place_id}")
+    async with db as session:
+        place = await session.get(Place, place_id)
+        if not place:
+            raise HTTPException(status_code=404, detail="Place not found")
+        
+        try:
+            logger.info(f"Attempting to delete place with ID: {place.id}")
+            await session.delete(place)  # Aquí debe ir el await
+            await session.commit()  # Asegúrate de usar await aquí también
+            logger.info(f"Place with ID: {place.id} deleted successfully.")
+            return {"message": "Place deleted successfully"}
+        except SQLAlchemyError as e:
+            await session.rollback()  # Usa await aquí también
+            logger.error(f"Failed to delete place with ID {place_id}: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/ndvi/{place_id}")
 async def get_ndvi(place_id: int, db: AsyncSession = Depends(get_db)):

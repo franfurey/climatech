@@ -1,11 +1,11 @@
 ## Key Commands
 - **Generate project structure**:
   ```bash
-  tree --prune -I 'venv|__pycache__|*.pyc|*.pyo|*.log|*.db|*.sqlite|*.egg-info|__init__.py' > project_structure.txt
+  tree --prune -I 'venv|__pycache__|*.pyc|*.pyo|*.log|*.db|*.sqlite|*.egg-info|__init__.py|node_modules|build|*.js.map|*.css.map' > project_structure.txt
   ```
 - **Lift Server**:
   ```
-  uvicorn app.main:app --reload
+  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
   ```
 
 # README for FastAPI Geospatial Web Application
@@ -58,31 +58,51 @@ DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated Ge
 │   ├── env.py
 │   ├── script.py.mako
 │   └── versions
-│       ├── 01bb1e17a192_initial_migration.py
-│       └── 300038457dbc_initial_migration.py
+│       ├── 0c200b07e4b2_add_ndvi_column.py
+│       └── cc4ed6cc1407_initial_migration.py
 ├── alembic.ini
 ├── app
+│   ├── config
+│   │   └── log_config.py
 │   ├── create_tables.py
 │   ├── database.py
 │   ├── external_apis
 │   │   └── appears
 │   │       ├── appears.py
-│   │       └── auth.py
+│   │       ├── auth.py
+│   │       ├── harmonized_landsat_sentinel_data.py
+│   │       └── utils_appears.py
 │   ├── main.py
-│   ├── models.py
-│   ├── static
-│   │   ├── Campo Nonos.geojson
-│   │   ├── La Calera - Cerro Piedra Relumbrosa.geojson
-│   │   └── Santa Fe.geojson
-│   └── templates
-│       ├── base.html
-│       ├── index.html
-│       └── map.html
-├── estructura_proyecto.txt
+│   └── models.py
+├── frontend
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── public
+│   │   ├── favicon.ico
+│   │   ├── index.html
+│   │   ├── logo192.png
+│   │   ├── logo512.png
+│   │   ├── manifest.json
+│   │   └── robots.txt
+│   └── src
+│       ├── AddPlaceForm.js
+│       ├── AddPlaceModal.js
+│       ├── App.css
+│       ├── App.js
+│       ├── BaseLayout.js
+│       ├── MapComponent.js
+│       ├── PlacesList.js
+│       ├── index.css
+│       ├── index.js
+│       ├── reportWebVitals.js
+│       └── styles.css
+├── project_structure.txt
 ├── readme.md
 ├── requirements.txt
-├── start.sh
-└── test_asyncpg.py
-  ```
+└── sandbox
+    ├── database.ipynb
+    ├── delete_all_tasks_appears.ipynb
+    └── fran.ipynb
 
-8 directories, 23 files
+11 directories, 40 files
+  ```

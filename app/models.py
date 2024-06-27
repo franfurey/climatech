@@ -13,12 +13,13 @@ class Place(Base):
     name = Column(String, index=True)
     description = Column(String, index=True)
     location = Column(Geography(geometry_type='POLYGON', srid=4326), index=True)
-    satellite_data = relationship("HarmonizedLandsatSentinelData", back_populates="place", uselist=False)
+    satellite_data = relationship("HarmonizedLandsatSentinelData", back_populates="place", cascade="all, delete")
 
 class HarmonizedLandsatSentinelData(Base):
     __tablename__ = 'harmonized_landsat_sentinel_data'
     id = Column(Integer, primary_key=True)
-    place_id = Column(Integer, ForeignKey('places.id'))
+    place_id = Column(Integer, ForeignKey('places.id', ondelete="CASCADE"), nullable=True)
+    place = relationship("Place", back_populates="satellite_data")
     capture_date = Column(DateTime, index=True)
     location = Column(Geography(geometry_type='POINT', srid=4326))
 
@@ -38,5 +39,3 @@ class HarmonizedLandsatSentinelData(Base):
     ndvi = Column(Float)
     
     additional_data = Column(JSONB)  # Stores additional data like SAA, SZA, VAA, VZA, etc.
-
-    place = relationship("Place", back_populates="satellite_data")
