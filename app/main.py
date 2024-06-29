@@ -142,7 +142,7 @@ async def get_ndvi(place_id: int, db: AsyncSession = Depends(get_db)):
     current_time = datetime.now()
     one_month_ago = current_time - timedelta(days=30)
 
-    # Verifica la existencia de datos recientes de NDVI
+    # Verify the existence of recent NDVI data
     most_recent_record = await db.execute(
         select(HarmonizedLandsatSentinelData)
         .where(
@@ -156,11 +156,10 @@ async def get_ndvi(place_id: int, db: AsyncSession = Depends(get_db)):
     if most_recent_record:
         logger.info("Recent NDVI data found in the database, avoiding new API request.")
         return JSONResponse(content={
-            "message": "Recent NDVI data available",
-            "ndvi": most_recent_record.ndvi
+            "message": "Recent NDVI data available"
         })
 
-    # Procesa los datos si no hay recientes
+    # Processes the data if there are no recent
     token = get_appears_token(username=os.getenv("APPEARS_USER"), password=os.getenv("APPEARS_PASS"))
     response = await fetch_and_store_hls_data(place_id=place_id, db=db, token=token)
     if response.get("error"):
@@ -182,18 +181,62 @@ async def get_ndvi(place_id: int, db: AsyncSession = Depends(get_db)):
             token=token
         )
 
-    # Calculates NDVI after processing all the files
-    await calculate_ndvi_for_place(db, place_id)
-
-    # Obtains and returns the updated NDVI record
-    updated_record = await db.execute(
-        select(HarmonizedLandsatSentinelData)
-        .where(HarmonizedLandsatSentinelData.place_id == place_id)
-        .order_by(HarmonizedLandsatSentinelData.capture_date.desc())
-    )
-    updated_record = updated_record.scalars().first()
-
     return JSONResponse(content={
-        "message": "NDVI data processed and updated successfully",
-        "ndvi": updated_record.ndvi
+        "message": "NDVI data processed and updated successfully"
     })
+
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import func
+from fastapi.responses import JSONResponse
+from geoalchemy2.shape import to_shape
+from sqlalchemy import distinct
+
+@app.get("/ndvi/dates/{place_id}")
+async def get_ndvi_dates(place_id: int, db: AsyncSession = Depends(get_db)):
+    dates_query = select(distinct(HarmonizedLandsatSentinelData.capture_date)).where(HarmonizedLandsatSentinelData.place_id == place_id)
+    result = await db.execute(dates_query)
+    dates = [record[0] for record in result.fetchall()]
+    return {"dates": dates}
+
+@app.get("/ndvi/heatmap/{place_id}")
+async def get_ndvi_heatmap(place_id: int, date: str = None, db: AsyncSession = Depends(get_db)):
+    logger.info(f"Received request for place_id: {place_id} with date: {date}")
+
+    if date:
+        try:
+            try:
+                # Primero intenta con milisegundos
+                date_obj = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S.%f')
+            except ValueError:
+                # Si falla, intenta sin milisegundos
+                date_obj = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S')
+            logger.info(f"Parsed date object: {date_obj}")
+        except ValueError as e:
+            logger.error(f"Error parsing date: {date}, Error: {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SS.sss.")
+        condition = (HarmonizedLandsatSentinelData.capture_date == date_obj)
+    else:
+        condition = None  # Añadir lógica para manejar la ausencia de fecha si es necesario
+
+    try:
+        ndvi_data_query = select(HarmonizedLandsatSentinelData).where(HarmonizedLandsatSentinelData.place_id == place_id, condition)
+        result = await db.execute(ndvi_data_query)
+        ndvi_records = result.scalars().all()
+        logger.info(f"NDVI records fetched: {len(ndvi_records)}")
+    except Exception as e:
+        logger.error(f"Failed to fetch NDVI data: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch data")
+
+    if not ndvi_records:
+        logger.warning("No NDVI data found for this place on the selected date")
+        raise HTTPException(status_code=404, detail="No NDVI data found")
+
+    heatmap_data = [
+        {"latitude": to_shape(record.location).y, "longitude": to_shape(record.location).x, "ndvi": record.ndvi}
+        for record in ndvi_records
+    ]
+
+    logger.info(f"Returning {len(heatmap_data)} records in the heatmap data")
+    return {"data": heatmap_data}
