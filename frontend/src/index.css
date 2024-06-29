@@ -1,4 +1,5 @@
-/* index.css */
+/* frontend/src/index.css */
+
 body, html {
   height: 100%;
   margin: 0;
@@ -8,4 +9,17 @@ body, html {
 
 #map {
   height: 100%;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  justify-content: start;
+  align-items: center;
+  padding: 10px;
+}
+
+.btn {
+  width: 80%; /* Adjusts the width of the buttons */
+  margin-bottom: 10px; /* Button spacing */
 }

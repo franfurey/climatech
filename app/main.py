@@ -182,10 +182,10 @@ async def get_ndvi(place_id: int, db: AsyncSession = Depends(get_db)):
             token=token
         )
 
-    # Calcula NDVI después de procesar todos los archivos
+    # Calculates NDVI after processing all the files
     await calculate_ndvi_for_place(db, place_id)
 
-    # Obtiene y devuelve el registro actualizado con NDVI
+    # Obtains and returns the updated NDVI record
     updated_record = await db.execute(
         select(HarmonizedLandsatSentinelData)
         .where(HarmonizedLandsatSentinelData.place_id == place_id)
