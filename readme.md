@@ -22,25 +22,35 @@ Web application project developed with FastAPI to visualize and manage geospatia
 ## System Components
 Backend: FastAPI
 Database: PostgreSQL with PostGIS
-Frontend: Jinja2 for template rendering, Leaflet for interactive mapping
+Frontend: React
 
 ## Endpoint Documentation
-- **Root Endpoint**:
-GET /: Return HTML with list of all locations.
 
-- **Terrain Details**:
-GET /terrain/{place_id}: Returns GeoJSON data of the place specified by ID.
+### Places
+- **Get Places**:
+  - **Endpoint**: `GET /places/get_places`
+  - **Description**: Retrieves a list of all places in the system.
 
-- **Map Display**:
-GET /map/{place_id}: Displays the interactive map of a specified place.
+- **Add Place**:
+  - **Endpoint**: `POST /places/add_place`
+  - **Description**: Adds a new place to the system and redirects to the main page.
 
-- **Add a New Place**:
-POST /add_place: Adds a new place to the system and redirects to the main page.
+- **Delete Place**:
+  - **Endpoint**: `DELETE /places/delete_place/{place_id}`
+  - **Description**: Deletes a place by its ID and any associated GeoJSON file.
 
-- **Deleting Places**:
-DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated GeoJSON file.
+### Terrain
+- **Get Terrain**:
+  - **Endpoint**: `GET /terrain/{place_id}`
+  - **Description**: Returns GeoJSON data of the place specified by ID.
 
-- **NDVI Retrieval**:
+### Map
+- **Show Map**:
+  - **Endpoint**: `GET /map/{place_id}`
+  - **Description**: Displays the interactive map of a specified place.
+
+### NDVI
+- **Get NDVI**:
   - **Endpoint**: `GET /ndvi/{place_id}`
   - **Description**: Retrieves normalized difference vegetation index (NDVI) data for a specified place. This endpoint initiates an asynchronous task to fetch and process satellite imagery data, converting it into NDVI measurements.
   - **Details**:
@@ -53,6 +63,24 @@ DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated Ge
       - Processes the data to compute NDVI values.
       - Stores the processed data in the database.
       - Continuously checks the task status until completion and handles the data accordingly.
+
+- **Get NDVI Dates**:
+  - **Endpoint**: `GET /ndvi/dates/{place_id}`
+  - **Description**: Retrieves available dates for NDVI data for a specified place.
+  - **Details**:
+    - **Parameters**:
+      - `place_id`: Integer, ID of the place for which NDVI dates are requested.
+    - **Returns**: A list of dates for which NDVI data is available.
+
+- **Get NDVI Heatmap**:
+  - **Endpoint**: `GET /ndvi/heatmap/{place_id}`
+  - **Description**: Retrieves NDVI heatmap data for a specified place and date.
+  - **Details**:
+    - **Parameters**:
+      - `place_id`: Integer, ID of the place for which NDVI heatmap data is requested.
+      - `date`: String (optional), specific date for the NDVI data in the format `YYYY-MM-DDTHH:MM:SS` or `YYYY-MM-DDTHH:MM:SS.sss`.
+    - **Returns**: A heatmap of NDVI values for the specified place and date.
+
 
 ## Directory Structure
   ```
@@ -68,8 +96,14 @@ DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated Ge
 ├── app
 │   ├── config
 │   │   └── log_config.py
-│   ├── create_tables.py
-│   ├── database.py
+│   ├── database
+│   │   ├── create_tables.py
+│   │   └── database.py
+│   ├── endpoints
+│   │   ├── map.py
+│   │   ├── ndvi.py
+│   │   ├── places.py
+│   │   └── terrain.py
 │   ├── external_apis
 │   │   └── appears
 │   │       ├── appears.py
@@ -77,7 +111,11 @@ DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated Ge
 │   │       ├── harmonized_landsat_sentinel_data.py
 │   │       └── utils_appears.py
 │   ├── main.py
-│   └── models.py
+│   ├── models
+│   │   ├── base.py
+│   │   ├── harmonized_landsat_sentinel_data.py
+│   │   └── place.py
+│   └── router.py
 ├── frontend
 │   ├── package-lock.json
 │   ├── package.json
@@ -98,12 +136,14 @@ DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated Ge
 ├── project_structure.txt
 ├── readme.md
 ├── requirements.txt
-├── sandbox
-│   ├── database.ipynb
-│   ├── delete_all_tasks_appears.ipynb
-│   └── fran.ipynb
-└── temp_HLSS30.020_2024166_to_2024181
-    └── HLSS30.020_B01_doy2024169_aid0001_20S.tif
+└── sandbox
+    ├── database.ipynb
+    ├── delete_all_tasks_appears.ipynb
+    ├── firms
+    │   ├── firms_api_use.ipynb
+    │   ├── firms_data_ingest.ipynb
+    │   └── firms_visualization.ipynb
+    └── fran.ipynb
 
-12 directories, 36 files
+15 directories, 45 files
   ```
