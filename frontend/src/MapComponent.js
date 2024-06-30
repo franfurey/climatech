@@ -1,3 +1,4 @@
+//  frontend/src/MapComponent.js
 import React, { useEffect, useState, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet.heat';
@@ -9,7 +10,8 @@ const MapComponent = () => {
   const navigate = useNavigate();
   const [dates, setDates] = useState([]);
   const [selectedDate, setSelectedDate] = useState('');
-  const mapRef = useRef(null); // Usamos useRef para mantener una referencia al mapa
+  const mapRef = useRef(null);
+  const geoJSONLayerRef = useRef(null);
 
   useEffect(() => {
     if (!mapRef.current) {
@@ -34,21 +36,42 @@ const MapComponent = () => {
       .then(response => response.json())
       .then(data => {
         const geoJSON = typeof data.geojson === 'string' ? JSON.parse(data.geojson) : data.geojson;
-        L.geoJSON(geoJSON).addTo(mapRef.current);
-        mapRef.current.fitBounds(L.geoJSON(geoJSON).getBounds());
+        geoJSONLayerRef.current = L.geoJSON(geoJSON, {
+          style: () => ({ color: '#0000ff', fillOpacity: 0.1 })
+        }).addTo(mapRef.current);
+        mapRef.current.fitBounds(geoJSONLayerRef.current.getBounds());
       });
 
-    fetch(`/ndvi/dates/${placeId}`)
+      fetch(`/ndvi/dates/${placeId}`)
       .then(response => response.json())
       .then(data => {
         setDates(data.dates);
       });
 
-    // Aseguramos de limpiar el mapa al desmontar el componente
     return () => {
       mapRef.current && mapRef.current.remove();
     };
   }, [placeId]);
+
+  const toggleGeoJSONVisibility = () => {
+    if (geoJSONLayerRef.current) {
+      if (mapRef.current.hasLayer(geoJSONLayerRef.current)) {
+        mapRef.current.removeLayer(geoJSONLayerRef.current);
+      } else {
+        mapRef.current.addLayer(geoJSONLayerRef.current);
+      }
+    }
+  };
+
+  const clearMap = () => {
+    if (mapRef.current) {
+      mapRef.current.eachLayer((layer) => {
+        if (layer !== mapRef.current) {
+          mapRef.current.removeLayer(layer);
+        }
+      });
+    }
+  };
 
   const fetchNDVI = () => {
     fetch(`/ndvi/${placeId}`)
@@ -68,23 +91,42 @@ const MapComponent = () => {
       alert('Please select a date first.');
       return;
     }
-
+  
     console.log(`Fetching NDVI heatmap data for date: ${selectedDate}`);
+    const startFetchTime = Date.now();
     fetch(`/ndvi/heatmap/${placeId}?date=${selectedDate}`)
-        .then(response => response.json())
-        .then(data => {
-            const heatData = data.data.map(d => [d.latitude, d.longitude, d.ndvi]);
-            L.heatLayer(heatData, {
-                radius: 25,
-                blur: 15,
-                gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
-            }).addTo(mapRef.current);
-        })
-        .catch(error => {
-            console.error('Error fetching NDVI heatmap data:', error);
-            alert('Failed to fetch NDVI heatmap data');
+      .then(response => {
+        console.log(`Data received in ${Date.now() - startFetchTime}ms`);
+        return response.json();
+      })
+      .then(data => {
+        console.log(`Received ${data.data.length} data points`);
+        const heatData = data.data.map(d => [d.latitude, d.longitude, d.ndvi]);
+        console.log(`Mapped heatData:`, heatData.slice(0, 10)); // Log the first 10 items to check structure
+  
+        const layer = L.heatLayer(heatData, {
+          radius: 25,
+          blur: 15,
+          gradient: {
+            0.0: 'navy',
+            0.2: 'blue',
+            0.4: 'green',
+            0.6: 'lime',
+            0.8: 'yellow',
+            1.0: 'red'
+          }
         });
+  
+        console.log(`Adding layer to map`);
+        layer.addTo(mapRef.current);
+        console.log(`Layer added to map successfully`);
+      })
+      .catch(error => {
+        console.error('Error fetching NDVI heatmap data:', error);
+        alert('Failed to fetch NDVI heatmap data');
+      });
   };
+  
 
   return (
     <div className="d-flex" style={{ height: '100vh' }}>
@@ -104,6 +146,8 @@ const MapComponent = () => {
         <button className="btn btn-success" onClick={showNDVIHeatmap}>
           Show NDVI
         </button>
+        <button className="btn btn-primary" onClick={toggleGeoJSONVisibility}>Toggle GeoJSON Visibility</button>
+        <button className="btn btn-danger" onClick={clearMap}>Clear Map</button>
       </div>
       <div className="flex-grow-1" id="map"></div>
     </div>

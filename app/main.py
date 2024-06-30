@@ -203,14 +203,13 @@ async def get_ndvi_dates(place_id: int, db: AsyncSession = Depends(get_db)):
 @app.get("/ndvi/heatmap/{place_id}")
 async def get_ndvi_heatmap(place_id: int, date: str = None, db: AsyncSession = Depends(get_db)):
     logger.info(f"Received request for place_id: {place_id} with date: {date}")
-
     if date:
         try:
             try:
-                # Primero intenta con milisegundos
+                # First try milliseconds
                 date_obj = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S.%f')
             except ValueError:
-                # Si falla, intenta sin milisegundos
+                # If it fails, try with no milliseconds
                 date_obj = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S')
             logger.info(f"Parsed date object: {date_obj}")
         except ValueError as e:
@@ -218,7 +217,7 @@ async def get_ndvi_heatmap(place_id: int, date: str = None, db: AsyncSession = D
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SS.sss.")
         condition = (HarmonizedLandsatSentinelData.capture_date == date_obj)
     else:
-        condition = None  # Añadir lógica para manejar la ausencia de fecha si es necesario
+        condition = None
 
     try:
         ndvi_data_query = select(HarmonizedLandsatSentinelData).where(HarmonizedLandsatSentinelData.place_id == place_id, condition)

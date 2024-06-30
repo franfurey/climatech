@@ -3,9 +3,13 @@
   ```bash
   tree --prune -I 'venv|__pycache__|*.pyc|*.pyo|*.log|*.db|*.sqlite|*.egg-info|__init__.py|node_modules|build|*.js.map|*.css.map' > project_structure.txt
   ```
-- **Lift Server**:
+- **Lift Backend Server**:
   ```
   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+  ```
+- **Lift Frontend Server**:
+  ```
+  npm start
   ```
 
 # README for FastAPI Geospatial Web Application
@@ -78,14 +82,9 @@ DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated Ge
 │   ├── package-lock.json
 │   ├── package.json
 │   ├── public
-│   │   ├── favicon.ico
 │   │   ├── index.html
-│   │   ├── logo192.png
-│   │   ├── logo512.png
-│   │   ├── manifest.json
 │   │   └── robots.txt
 │   └── src
-│       ├── AddPlaceForm.js
 │       ├── AddPlaceModal.js
 │       ├── App.css
 │       ├── App.js
@@ -99,10 +98,12 @@ DELETE /delete_place/{place_id}: Deletes a place by its ID and any associated Ge
 ├── project_structure.txt
 ├── readme.md
 ├── requirements.txt
-└── sandbox
-    ├── database.ipynb
-    ├── delete_all_tasks_appears.ipynb
-    └── fran.ipynb
+├── sandbox
+│   ├── database.ipynb
+│   ├── delete_all_tasks_appears.ipynb
+│   └── fran.ipynb
+└── temp_HLSS30.020_2024166_to_2024181
+    └── HLSS30.020_B01_doy2024169_aid0001_20S.tif
 
-11 directories, 40 files
+12 directories, 36 files
   ```

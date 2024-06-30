@@ -32,7 +32,7 @@ async def fetch_and_store_hls_data(place_id: int,
         return {"error": "Place not found"}
 
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=15)  # Two weeks earlier
+    start_date = end_date - timedelta(days=7)  # One weeks earlier
     task_name = f"HarmonizedLandsatSentinelData-{end_date.strftime('%Y%m%d')}"
 
     logger.info(f"Submitting task for place_id {place_id} with task_name {task_name}")
