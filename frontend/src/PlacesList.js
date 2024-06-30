@@ -9,7 +9,7 @@ const PlacesList = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetch('/api/places')  // Llamada a la API para obtener los lugares
+        fetch('/places/get_places')  // API call to get the locations
             .then(response => response.json())
             .then(data => setPlaces(data))
             .catch(console.error);
@@ -18,7 +18,7 @@ const PlacesList = () => {
     const handleDelete = (placeId) => {  // Manejador para borrar un lugar
         console.log('Deleting place:', placeId);
         if (window.confirm("¿Estás seguro de que deseas eliminar este lugar?")) {
-            fetch(`/delete_place/${placeId}`, { method: 'DELETE' })
+            fetch(`/places/delete_place/${placeId}`, { method: 'DELETE' })
                 .then(response => response.json())
                 .then(data => {
                     alert(data.message);

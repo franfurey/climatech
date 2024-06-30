@@ -1,25 +1,18 @@
-# app/models.py
+# app/models/harmonized_landsat_sentinel_data.py
 from geoalchemy2 import Geography
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
-
-Base = declarative_base()
-
-class Place(Base):
-    __tablename__ = "places"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    description = Column(String, index=True)
-    location = Column(Geography(geometry_type='POLYGON', srid=4326), index=True)
-    satellite_data = relationship("HarmonizedLandsatSentinelData", back_populates="place", cascade="all, delete")
+from sqlalchemy import Column, Integer, Float, DateTime, ForeignKey
+from .base import Base
 
 class HarmonizedLandsatSentinelData(Base):
     __tablename__ = 'harmonized_landsat_sentinel_data'
     id = Column(Integer, primary_key=True)
     place_id = Column(Integer, ForeignKey('places.id', ondelete="CASCADE"), nullable=True)
+    
+    # Utiliza una cadena de texto para referirse a la clase relacionada
     place = relationship("Place", back_populates="satellite_data")
+    
     capture_date = Column(DateTime, index=True)
     location = Column(Geography(geometry_type='POINT', srid=4326))
 

@@ -17,7 +17,7 @@ const AddPlaceModal = ({ show, handleClose }) => {
         formData.append('description', description);
         formData.append('geojson', file);
 
-        fetch('/add_place', {
+        fetch('/places/add_place', {
             method: 'POST',
             body: formData
         })
