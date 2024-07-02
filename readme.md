@@ -123,12 +123,15 @@ Frontend: React
 │   │   ├── index.html
 │   │   └── robots.txt
 │   └── src
-│       ├── AddPlaceModal.js
 │       ├── App.css
 │       ├── App.js
 │       ├── BaseLayout.js
-│       ├── MapComponent.js
-│       ├── PlacesList.js
+│       ├── components
+│       │   ├── AddPlaceModal.js
+│       │   ├── MapComponent.js
+│       │   ├── PlacesList.js
+│       │   ├── Sidebar.js
+│       │   └── WildFiresMap.js
 │       ├── index.css
 │       ├── index.js
 │       ├── reportWebVitals.js
@@ -145,5 +148,5 @@ Frontend: React
     │   └── firms_visualization.ipynb
     └── fran.ipynb
 
-15 directories, 45 files
+16 directories, 47 files
   ```

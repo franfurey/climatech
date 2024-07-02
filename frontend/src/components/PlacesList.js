@@ -1,28 +1,26 @@
-// frontend/src/PlacesList.js
+// frontend/src/components/PlacesList.js
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import AddPlaceModal from './AddPlaceModal';
 
 const PlacesList = () => {
     const [places, setPlaces] = useState([]);
-    const [showModal, setShowModal] = useState(false); // Estado para controlar la visibilidad del modal
-    const navigate = useNavigate();
+    const [showModal, setShowModal] = useState(false);
 
     useEffect(() => {
-        fetch('/places/get_places')  // API call to get the locations
+        fetch('/places/get_places')
             .then(response => response.json())
             .then(data => setPlaces(data))
             .catch(console.error);
     }, []);
 
-    const handleDelete = (placeId) => {  // Manejador para borrar un lugar
-        console.log('Deleting place:', placeId);
+    const handleDelete = (placeId) => {
         if (window.confirm("¿Estás seguro de que deseas eliminar este lugar?")) {
             fetch(`/places/delete_place/${placeId}`, { method: 'DELETE' })
                 .then(response => response.json())
                 .then(data => {
                     alert(data.message);
-                    setPlaces(places.filter(place => place.id !== placeId)); // Actualiza el estado para reflejar el lugar eliminado
+                    setPlaces(places.filter(place => place.id !== placeId));
                 })
                 .catch(error => {
                     console.error('Error al eliminar el lugar:', error);
