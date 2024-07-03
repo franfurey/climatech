@@ -13,4 +13,3 @@ class Place(Base):
     
     # Utiliza una cadena de texto para referirse a la clase relacionada
     satellite_data = relationship("HarmonizedLandsatSentinelData", back_populates="place", cascade="all, delete")
-
