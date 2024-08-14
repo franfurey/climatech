@@ -9,6 +9,9 @@
   ```
 - **Lift Frontend Server**:
   ```
+  cd frontend
+  ```
+  ```
   npm start
   ```
 
